@@ -1,0 +1,334 @@
+====================================================================
+  Roundcube FIDO2/WebAuthn 2FA Plugin — Installation Guide
+====================================================================
+
+
+--------------------------------------------------------------------
+1. REQUIREMENTS
+--------------------------------------------------------------------
+
+Roundcube:   1.6 or later
+PHP:         8.1 or later
+HTTPS:       Required (WebAuthn will not work over plain HTTP,
+             except on localhost for development)
+Composer:    Required for dependency installation
+
+PHP extensions (beyond what Roundcube already requires):
+  - openssl
+  - mbstring
+  - session   (built-in)
+  - json      (built-in since PHP 8.0)
+
+Database — any engine Roundcube supports:
+  - MySQL / MariaDB
+  - PostgreSQL
+  - SQLite
+
+The plugin's database table is created automatically on first use.
+
+
+--------------------------------------------------------------------
+2. INSTALLATION
+--------------------------------------------------------------------
+
+Choose one of the following methods.
+
+
+--- Method A: Composer (recommended) ---
+
+From your Roundcube root directory:
+
+  composer require cherubimro/roundcube-fido2
+
+This installs the plugin into plugins/webauthn/ automatically.
+
+If the package is not yet on Packagist, add the GitHub repository
+first. Edit your Roundcube composer.json and add:
+
+  "repositories": [
+      { "type": "vcs", "url": "https://github.com/cherubimro/roundcube-fido2" }
+  ]
+
+Then run:
+
+  composer require cherubimro/roundcube-fido2
+
+
+--- Method B: Manual ---
+
+  cd /path/to/roundcube
+  git clone https://github.com/cherubimro/roundcube-fido2 plugins/webauthn
+  cd plugins/webauthn
+  composer install --no-dev
+
+
+--- Method C: Download archive ---
+
+  1. Download the latest release from:
+     https://github.com/cherubimro/roundcube-fido2/releases
+
+  2. Extract into your Roundcube plugins/ directory:
+       tar xzf roundcube-fido2-*.tar.gz -C /path/to/roundcube/plugins/
+       mv /path/to/roundcube/plugins/roundcube-fido2-* /path/to/roundcube/plugins/webauthn
+
+  3. Install PHP dependencies:
+       cd /path/to/roundcube/plugins/webauthn
+       composer install --no-dev
+
+
+--------------------------------------------------------------------
+3. CONFIGURATION
+--------------------------------------------------------------------
+
+a) Copy the example config:
+
+     cd /path/to/roundcube/plugins/webauthn
+     cp config.inc.php.dist config.inc.php
+
+b) Edit config.inc.php:
+
+     // Must match the domain users access Roundcube on:
+     $config['webauthn_rp_id'] = 'mail.example.com';
+
+   All available settings:
+
+   webauthn_2fa_policy        'optional'    off | optional | required
+                              optional = users choose in Settings
+                              required = enforced for all users with keys
+                              off = plugin disabled
+
+   webauthn_rp_name           'Roundcube'   Display name shown during key tap
+   webauthn_rp_id             '' (auto)      Your domain (e.g. 'mail.example.com')
+   webauthn_rp_origins        [] (auto)      e.g. ['https://mail.example.com']
+   webauthn_timeout           60000          Ceremony timeout in milliseconds
+   webauthn_user_verification 'preferred'    preferred | required | discouraged
+   webauthn_attestation       'none'         none | indirect | direct
+   webauthn_attachment        '' (any)       '' | platform | cross-platform
+
+c) Enable the plugin in Roundcube's config/config.inc.php:
+
+     $config['plugins'] = [
+         'webauthn',
+         // ... your other plugins
+     ];
+
+
+--------------------------------------------------------------------
+4. HTTPS SETUP
+--------------------------------------------------------------------
+
+WebAuthn requires a secure context. In production, use a real TLS
+certificate (e.g. Let's Encrypt). Below are common setups.
+
+
+--- Apache ---
+
+  a2enmod ssl rewrite
+
+  <VirtualHost *:443>
+      ServerName mail.example.com
+      DocumentRoot /path/to/roundcube/public_html
+
+      SSLEngine on
+      SSLCertificateFile    /etc/letsencrypt/live/mail.example.com/fullchain.pem
+      SSLCertificateKeyFile /etc/letsencrypt/live/mail.example.com/privkey.pem
+
+      <Directory /path/to/roundcube/public_html>
+          Options -Indexes
+          AllowOverride All
+          Require all granted
+      </Directory>
+
+      <DirectoryMatch "/path/to/roundcube/(config|temp|logs|SQL|vendor)">
+          Require all denied
+      </DirectoryMatch>
+  </VirtualHost>
+
+  <VirtualHost *:80>
+      ServerName mail.example.com
+      Redirect permanent / https://mail.example.com/
+  </VirtualHost>
+
+
+--- Nginx ---
+
+  server {
+      listen 443 ssl;
+      server_name mail.example.com;
+
+      ssl_certificate     /etc/letsencrypt/live/mail.example.com/fullchain.pem;
+      ssl_certificate_key /etc/letsencrypt/live/mail.example.com/privkey.pem;
+
+      root /path/to/roundcube/public_html;
+      index index.php;
+
+      location / {
+          try_files $uri $uri/ /index.php?$args;
+      }
+
+      location ~ \.php$ {
+          fastcgi_pass unix:/run/php-fpm/php-fpm.sock;
+          fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+          include fastcgi_params;
+      }
+
+      location ~ ^/(config|temp|logs|SQL|vendor)/ {
+          deny all;
+      }
+  }
+
+  server {
+      listen 80;
+      server_name mail.example.com;
+      return 301 https://$host$request_uri;
+  }
+
+
+--- Local development ---
+
+  WebAuthn makes an exception for localhost (no HTTPS needed).
+  Set in the plugin config:
+
+    $config['webauthn_rp_id'] = 'localhost';
+
+  Or generate a self-signed certificate:
+
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+        -keyout /etc/ssl/private/roundcube.key \
+        -out /etc/ssl/certs/roundcube.crt \
+        -subj "/CN=localhost"
+
+
+--------------------------------------------------------------------
+5. PHP EXTENSIONS BY DISTRIBUTION
+--------------------------------------------------------------------
+
+Debian / Ubuntu:
+  apt install php-openssl php-mbstring php-sqlite3
+  apt install php-mysql      # for MySQL/MariaDB
+  apt install php-pgsql      # for PostgreSQL
+
+RHEL / CentOS / Fedora:
+  dnf install php-openssl php-mbstring php-sqlite3
+  dnf install php-mysqlnd    # for MySQL/MariaDB
+  dnf install php-pgsql      # for PostgreSQL
+
+openSUSE:
+  zypper install php8-openssl php8-mbstring php8-sqlite
+  zypper install php8-mysql   # for MySQL/MariaDB
+  zypper install php8-pgsql   # for PostgreSQL
+
+Arch Linux:
+  pacman -S php php-sqlite
+  # openssl and mbstring are compiled in by default
+
+Alpine Linux:
+  apk add php82-openssl php82-mbstring php82-sqlite3
+  apk add php82-mysqli       # for MySQL/MariaDB
+  apk add php82-pgsql        # for PostgreSQL
+
+
+--------------------------------------------------------------------
+6. DATABASE
+--------------------------------------------------------------------
+
+The webauthn_credentials table is created automatically the first
+time the plugin runs. No manual SQL import is needed.
+
+If auto-creation fails (e.g. restricted DB permissions), import
+the schema manually:
+
+  MySQL:      mysql -u user -p roundcubemail < plugins/webauthn/SQL/mysql.sql
+  PostgreSQL: psql -U user roundcubemail < plugins/webauthn/SQL/postgres.sql
+  SQLite:     sqlite3 /path/to/roundcube.db < plugins/webauthn/SQL/sqlite.sql
+
+
+--------------------------------------------------------------------
+7. VERIFY THE INSTALLATION
+--------------------------------------------------------------------
+
+a) Open your Roundcube URL and log in.
+
+b) Go to Settings > Security Keys.
+   If the section does not appear, check that 'webauthn' is in
+   your $config['plugins'] array and look at logs/errors.log.
+
+c) Click "Register New Key", enter a name, and tap your key.
+
+d) If policy is 'optional', toggle "Enable two-factor authentication".
+
+e) Log out, then log back in. You should see the 2FA verification
+   page prompting you to tap your security key.
+
+Testing without a physical key:
+   Chrome: DevTools (F12) > three-dot menu > More Tools > WebAuthn
+   Enable "Virtual Authenticator Environment" and add a CTAP2
+   authenticator. This simulates a hardware key for testing.
+
+
+--------------------------------------------------------------------
+8. SUPPORTED AUTHENTICATORS
+--------------------------------------------------------------------
+
+Any FIDO2/WebAuthn-compliant hardware works:
+
+  - YubiKey 5 series (USB-A, USB-C, NFC, Lightning)
+  - Feitian BioPass FIDO2 (fingerprint)
+  - Google Titan Security Key
+  - SoloKeys Solo 2
+  - Nitrokey FIDO2
+  - Windows Hello (built-in)
+  - macOS Touch ID (built-in)
+  - Android fingerprint (built-in)
+  - Synced passkeys (iCloud Keychain, Google Password Manager)
+
+
+--------------------------------------------------------------------
+9. TROUBLESHOOTING
+--------------------------------------------------------------------
+
+"Your browser does not support WebAuthn security keys"
+  Use Chrome 67+, Firefox 60+, Safari 13+, or Edge 18+.
+
+WebAuthn ceremony fails with "SecurityError"
+  The rp_id must match the domain exactly. If you access Roundcube
+  at https://mail.example.com, set webauthn_rp_id = 'mail.example.com'.
+  WebAuthn requires HTTPS (except localhost).
+
+"No credentials registered for this user"
+  Register a key first in Settings > Security Keys.
+
+"Possible cloned authenticator detected"
+  The signature counter went backwards, indicating the key may have
+  been duplicated. Check logs/webauthn.log for details.
+
+Settings page doesn't appear
+  Verify 'webauthn' is listed in $config['plugins'].
+  Check logs/errors.log for PHP errors.
+
+Database errors on first use
+  The auto-create may fail with restricted DB users. Import the
+  schema manually (see section 6).
+
+Logs to check:
+  <roundcube>/logs/errors.log     Roundcube errors
+  <roundcube>/logs/webauthn.log   Plugin-specific events
+  Web server error log            Apache/Nginx errors
+
+
+--------------------------------------------------------------------
+10. UNINSTALLATION
+--------------------------------------------------------------------
+
+a) Remove 'webauthn' from $config['plugins'] in config/config.inc.php.
+
+b) Optionally delete the plugin directory:
+     rm -rf /path/to/roundcube/plugins/webauthn
+
+c) Optionally drop the database table:
+     MySQL:      DROP TABLE webauthn_credentials;
+     PostgreSQL: DROP TABLE webauthn_credentials;
+     SQLite:     DROP TABLE webauthn_credentials;
+
+   Or if installed via Composer:
+     composer remove cherubimro/roundcube-fido2

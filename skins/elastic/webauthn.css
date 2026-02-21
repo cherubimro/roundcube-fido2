@@ -1,0 +1,78 @@
+/* WebAuthn 2FA Plugin Styles */
+
+/* Verification page */
+#webauthn-verify-container {
+    max-width: 480px;
+    margin: 80px auto;
+    text-align: center;
+}
+
+#webauthn-verify-container .boxtitle {
+    font-size: 1.4em;
+    margin-bottom: 1em;
+}
+
+#webauthn-verify-container .boxcontent {
+    padding: 2em;
+}
+
+#webauthn-message {
+    font-size: 1.1em;
+    margin-bottom: 1.5em;
+    color: #333;
+}
+
+#webauthn-error {
+    color: #c62828;
+    background: #ffebee;
+    border: 1px solid #ef9a9a;
+    border-radius: 4px;
+    padding: 0.8em 1em;
+    margin-bottom: 1em;
+    word-break: break-word;
+}
+
+#webauthn-verify-container .formbuttons {
+    margin-top: 1.5em;
+}
+
+#webauthn-verify-container .formbuttons .btn {
+    margin: 0 0.3em;
+}
+
+/* Settings page */
+#webauthn-keys-table {
+    margin-bottom: 1.5em;
+}
+
+#webauthn-keys-table td.empty {
+    text-align: center;
+    padding: 2em;
+    color: #888;
+    font-style: italic;
+}
+
+#webauthn-keys-table td.actions {
+    text-align: right;
+    white-space: nowrap;
+}
+
+#webauthn-toggle-row {
+    margin-top: 1.5em;
+    padding: 1em 0;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    gap: 0.8em;
+}
+
+#webauthn-toggle-row label {
+    margin-bottom: 0;
+    cursor: pointer;
+}
+
+/* Settings icon in the settings menu */
+.listbox .listing .webauthn > a::before,
+a.webauthn::before {
+    content: "\1f511";
+}

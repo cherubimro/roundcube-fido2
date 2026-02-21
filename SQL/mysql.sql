@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS `webauthn_credentials` (
+    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `user_id` INT UNSIGNED NOT NULL,
+    `description` VARCHAR(64) NOT NULL,
+    `credential_id` VARBINARY(1024) NOT NULL,
+    `public_key` BLOB NOT NULL,
+    `aaguid` VARCHAR(36) DEFAULT NULL,
+    `attestation_type` VARCHAR(32) DEFAULT NULL,
+    `attachment` VARCHAR(16) DEFAULT NULL,
+    `transports` VARCHAR(128) DEFAULT NULL,
+    `sign_count` INT UNSIGNED NOT NULL DEFAULT 0,
+    `clone_warning` TINYINT NOT NULL DEFAULT 0,
+    `user_verified` TINYINT NOT NULL DEFAULT 0,
+    `backup_eligible` TINYINT NOT NULL DEFAULT 0,
+    `created_at` DATETIME NOT NULL,
+    `last_used_at` DATETIME DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `ix_webauthn_user_cred` (`user_id`, `credential_id`(255)),
+    KEY `ix_webauthn_user` (`user_id`),
+    CONSTRAINT `fk_webauthn_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

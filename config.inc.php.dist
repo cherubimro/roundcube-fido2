@@ -1,0 +1,43 @@
+<?php
+
+// WebAuthn 2FA Plugin Configuration
+
+// 2FA enforcement policy: 'off' | 'optional' | 'required'
+// off      - plugin disabled entirely
+// optional - users can enable/disable 2FA themselves
+// required - all users must use 2FA (if they have registered keys)
+$config['webauthn_2fa_policy'] = 'optional';
+
+// Relying Party display name
+$config['webauthn_rp_name'] = 'Roundcube';
+
+// Relying Party ID (domain name, e.g. 'mail.example.com')
+// Must match the domain users access Roundcube on.
+// Leave empty to auto-detect from HTTP_HOST.
+$config['webauthn_rp_id'] = '';
+
+// Allowed origins for WebAuthn ceremonies.
+// Array of full origins, e.g. ['https://mail.example.com']
+// Leave empty to auto-detect from the current request.
+$config['webauthn_rp_origins'] = [];
+
+// Timeout for WebAuthn ceremonies in milliseconds
+$config['webauthn_timeout'] = 60000;
+
+// User verification requirement: 'preferred' | 'required' | 'discouraged'
+// preferred    - authenticator will try UV if capable (fingerprint/PIN)
+// required     - UV is mandatory (rejects keys without biometric/PIN)
+// discouraged  - skip UV even if available (fastest flow)
+$config['webauthn_user_verification'] = 'preferred';
+
+// Attestation conveyance preference: 'none' | 'indirect' | 'direct'
+// none     - no attestation data requested (most compatible)
+// indirect - attestation may be anonymized by the authenticator
+// direct   - raw attestation from the authenticator
+$config['webauthn_attestation'] = 'none';
+
+// Authenticator attachment preference: '' | 'platform' | 'cross-platform'
+// ''              - any authenticator (default)
+// platform        - built-in (e.g. fingerprint reader, Windows Hello)
+// cross-platform  - roaming (e.g. USB/NFC security key)
+$config['webauthn_attachment'] = '';
