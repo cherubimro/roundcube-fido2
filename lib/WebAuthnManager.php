@@ -1,16 +1,38 @@
 <?php
 
+declare(strict_types=1);
+
+/**
+ * @file
+ * WebAuthn ceremony logic and credential storage for Roundcube.
+ */
+
 use lbuchs\WebAuthn\WebAuthn;
 use lbuchs\WebAuthn\Binary\ByteBuffer;
 
 class WebAuthnManager
 {
-    private $db;
-    private $config;
-    private $webauthn;
-    private $table;
+    /** @var rcube_db */
+    private rcube_db $db;
 
-    public function __construct($db, $config)
+    /** @var array */
+    private array $config;
+
+    /** @var WebAuthn */
+    private WebAuthn $webauthn;
+
+    /** @var string */
+    private string $table;
+
+    /**
+     * Constructs a WebAuthnManager.
+     *
+     * @param rcube_db $db
+     *   The Roundcube database handle.
+     * @param array $config
+     *   Plugin configuration array.
+     */
+    public function __construct(rcube_db $db, array $config)
     {
         $this->db = $db;
         $this->config = $config;
@@ -31,7 +53,7 @@ class WebAuthnManager
     /**
      * Initialize the database table if it doesn't exist.
      */
-    public function ensure_table()
+    public function ensure_table(): void
     {
         $result = $this->db->query("SELECT 1 FROM {$this->table} LIMIT 1");
 
@@ -55,16 +77,28 @@ class WebAuthnManager
 
     /**
      * Check whether a user has any registered credentials.
+     *
+     * @param int $user_id
+     *   The Roundcube user ID.
+     *
+     * @return bool
+     *   TRUE if the user has at least one credential.
      */
-    public function user_has_credentials($user_id): bool
+    public function user_has_credentials(int $user_id): bool
     {
         return $this->count_credentials($user_id) > 0;
     }
 
     /**
      * Count registered credentials for a user.
+     *
+     * @param int $user_id
+     *   The Roundcube user ID.
+     *
+     * @return int
+     *   The number of credentials.
      */
-    public function count_credentials($user_id): int
+    public function count_credentials(int $user_id): int
     {
         $result = $this->db->query(
             "SELECT COUNT(*) AS cnt FROM {$this->table} WHERE user_id = ?",
@@ -78,8 +112,14 @@ class WebAuthnManager
 
     /**
      * Get all credentials for a user.
+     *
+     * @param int $user_id
+     *   The Roundcube user ID.
+     *
+     * @return array
+     *   Array of credential associative arrays.
      */
-    public function get_credentials($user_id): array
+    public function get_credentials(int $user_id): array
     {
         $result = $this->db->query(
             "SELECT * FROM {$this->table} WHERE user_id = ? ORDER BY created_at DESC",
@@ -96,8 +136,16 @@ class WebAuthnManager
 
     /**
      * Get a single credential by its DB id and user.
+     *
+     * @param int $user_id
+     *   The Roundcube user ID.
+     * @param int $db_id
+     *   The database row ID.
+     *
+     * @return array|null
+     *   The credential array, or null if not found.
      */
-    public function get_credential_by_db_id($user_id, $db_id): ?array
+    public function get_credential_by_db_id(int $user_id, int $db_id): ?array
     {
         $result = $this->db->query(
             "SELECT * FROM {$this->table} WHERE id = ? AND user_id = ?",
@@ -112,9 +160,17 @@ class WebAuthnManager
     /**
      * Begin a registration ceremony.
      *
-     * Returns ['args' => PublicKeyCredentialCreationOptions, 'challenge' => binary challenge].
+     * @param int $user_id
+     *   The Roundcube user ID.
+     * @param string $username
+     *   The account name.
+     * @param string $description
+     *   A user-given key name.
+     *
+     * @return array
+     *   Array with 'args', 'challenge', and 'description' keys.
      */
-    public function begin_registration($user_id, $username, $description): array
+    public function begin_registration(int $user_id, string $username, string $description): array
     {
         $timeout = (int) ($this->config['timeout'] ?? 60000);
         $uv = ($this->config['user_verification'] ?? 'preferred') === 'required';
@@ -167,16 +223,23 @@ class WebAuthnManager
     /**
      * Complete a registration ceremony.
      *
-     * @param int    $user_id
-     * @param string $challenge     Binary challenge from session
-     * @param string $client_data   Base64url-encoded clientDataJSON
-     * @param string $attestation   Base64url-encoded attestationObject
-     * @param string $description   User-given name for the key
-     * @param string $transports    Comma-separated transport hints from JS
+     * @param int $user_id
+     *   The Roundcube user ID.
+     * @param string $challenge
+     *   Binary challenge from session.
+     * @param string $client_data
+     *   Base64url-encoded clientDataJSON.
+     * @param string $attestation
+     *   Base64url-encoded attestationObject.
+     * @param string $description
+     *   User-given name for the key.
+     * @param string $transports
+     *   Comma-separated transport hints from JS.
      *
      * @return bool
+     *   TRUE on success.
      */
-    public function finish_registration($user_id, $challenge, $client_data, $attestation, $description, $transports = ''): bool
+    public function finish_registration(int $user_id, string $challenge, string $client_data, string $attestation, string $description, string $transports = ''): bool
     {
         $uv = ($this->config['user_verification'] ?? 'preferred') === 'required';
         $challenge_buf = new ByteBuffer($challenge);
@@ -225,9 +288,16 @@ class WebAuthnManager
     /**
      * Begin an assertion (authentication) ceremony.
      *
-     * Returns ['args' => PublicKeyCredentialRequestOptions, 'challenge' => binary].
+     * @param int $user_id
+     *   The Roundcube user ID.
+     *
+     * @return array
+     *   Array with 'args' and 'challenge' keys.
+     *
+     * @throws \RuntimeException
+     *   If the user has no registered credentials.
      */
-    public function begin_assertion($user_id): array
+    public function begin_assertion(int $user_id): array
     {
         $timeout = (int) ($this->config['timeout'] ?? 60000);
         $uv = ($this->config['user_verification'] ?? 'preferred') === 'required';
@@ -264,16 +334,26 @@ class WebAuthnManager
     /**
      * Complete an assertion (authentication) ceremony.
      *
-     * @param int    $user_id
-     * @param string $challenge        Binary challenge from session
-     * @param string $credential_id    Base64url-encoded credential ID from response
-     * @param string $client_data      Base64url-encoded clientDataJSON
-     * @param string $authenticator    Base64url-encoded authenticatorData
-     * @param string $signature        Base64url-encoded signature
+     * @param int $user_id
+     *   The Roundcube user ID.
+     * @param string $challenge
+     *   Binary challenge from session.
+     * @param string $credential_id
+     *   Base64url-encoded credential ID from response.
+     * @param string $client_data
+     *   Base64url-encoded clientDataJSON.
+     * @param string $authenticator
+     *   Base64url-encoded authenticatorData.
+     * @param string $signature
+     *   Base64url-encoded signature.
      *
      * @return bool
+     *   TRUE on successful verification.
+     *
+     * @throws \RuntimeException
+     *   If the credential is unknown or a clone is detected.
      */
-    public function finish_assertion($user_id, $challenge, $credential_id, $client_data, $authenticator, $signature): bool
+    public function finish_assertion(int $user_id, string $challenge, string $credential_id, string $client_data, string $authenticator, string $signature): bool
     {
         $cred_id_bin = base64_decode(strtr($credential_id, '-_', '+/'));
         $uv = ($this->config['user_verification'] ?? 'preferred') === 'required';
@@ -337,8 +417,16 @@ class WebAuthnManager
 
     /**
      * Delete a credential by its DB id.
+     *
+     * @param int $user_id
+     *   The Roundcube user ID.
+     * @param int $db_id
+     *   The database row ID.
+     *
+     * @return bool
+     *   TRUE if a row was deleted.
      */
-    public function delete_credential($user_id, $db_id): bool
+    public function delete_credential(int $user_id, int $db_id): bool
     {
         $this->db->query(
             "DELETE FROM {$this->table} WHERE id = ? AND user_id = ?",
@@ -350,8 +438,16 @@ class WebAuthnManager
 
     /**
      * Find a credential by raw binary credential ID.
+     *
+     * @param int $user_id
+     *   The Roundcube user ID.
+     * @param string $cred_id_bin
+     *   The raw binary credential ID.
+     *
+     * @return array|null
+     *   The credential array, or null if not found.
      */
-    private function find_credential_by_raw_id($user_id, $cred_id_bin): ?array
+    private function find_credential_by_raw_id(int $user_id, string $cred_id_bin): ?array
     {
         $credentials = $this->get_credentials($user_id);
         foreach ($credentials as $cred) {

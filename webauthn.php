@@ -1,15 +1,25 @@
 <?php
 
+declare(strict_types=1);
+
+/**
+ * @file
+ * WebAuthn/FIDO2 two-factor authentication plugin for Roundcube.
+ */
+
 class webauthn extends rcube_plugin
 {
     public $task = '?(?!logout).*';
     public $noframe = true;
 
-    private $rc;
-    private $manager;
+    /** @var rcmail */
+    private rcmail $rc;
+
+    /** @var WebAuthnManager|null */
+    private ?WebAuthnManager $manager = null;
 
     #[\Override]
-    public function init()
+    public function init(): void
     {
         $this->rc = rcmail::get_instance();
         $this->load_config();
@@ -43,6 +53,9 @@ class webauthn extends rcube_plugin
 
     /**
      * Get or initialize the WebAuthnManager.
+     *
+     * @return WebAuthnManager
+     *   The manager instance.
      */
     private function get_manager(): WebAuthnManager
     {
@@ -75,14 +88,16 @@ class webauthn extends rcube_plugin
         return $this->manager;
     }
 
-    // ----------------------------------------------------------------
-    // Hooks
-    // ----------------------------------------------------------------
-
     /**
-     * startup hook — enforce 2FA gate on every request.
+     * Startup hook — enforce 2FA gate on every request.
+     *
+     * @param array $args
+     *   Hook arguments containing task and action.
+     *
+     * @return array
+     *   The (possibly modified) hook arguments.
      */
-    public function on_startup($args)
+    public function on_startup(array $args): array
     {
         if (empty($_SESSION['user_id'])) {
             return $args;
@@ -114,9 +129,15 @@ class webauthn extends rcube_plugin
     }
 
     /**
-     * login_after hook — set 2FA pending flag if user has credentials.
+     * Login_after hook — set 2FA pending flag if user has credentials.
+     *
+     * @param array $args
+     *   Hook arguments.
+     *
+     * @return array
+     *   The unmodified hook arguments.
      */
-    public function on_login_after($args)
+    public function on_login_after(array $args): array
     {
         $policy = $this->rc->config->get('webauthn_2fa_policy', 'optional');
         $user_id = $this->rc->user->ID;
@@ -146,9 +167,15 @@ class webauthn extends rcube_plugin
     }
 
     /**
-     * settings_actions hook — add "Security Keys" section.
+     * Settings_actions hook — add "Security Keys" section.
+     *
+     * @param array $args
+     *   Hook arguments containing the actions list.
+     *
+     * @return array
+     *   The modified hook arguments with the new action appended.
      */
-    public function settings_actions($args)
+    public function settings_actions(array $args): array
     {
         $args['actions'][] = [
             'action' => 'plugin.webauthn-settings',
@@ -161,14 +188,10 @@ class webauthn extends rcube_plugin
         return $args;
     }
 
-    // ----------------------------------------------------------------
-    // Actions: 2FA verification
-    // ----------------------------------------------------------------
-
     /**
      * Render the 2FA verification page.
      */
-    public function action_verify_page()
+    public function action_verify_page(): void
     {
         $this->add_texts('localization/');
         $this->include_stylesheet($this->local_skin_path() . '/webauthn.css');
@@ -183,8 +206,11 @@ class webauthn extends rcube_plugin
 
     /**
      * Generate the body HTML for the verification page.
+     *
+     * @return string
+     *   The rendered HTML.
      */
-    public function verify_body()
+    public function verify_body(): string
     {
         $this->rc->output->add_label(
             'webauthn.verifying',
@@ -222,7 +248,7 @@ class webauthn extends rcube_plugin
     /**
      * AJAX: return assertion challenge options.
      */
-    public function action_assert_options()
+    public function action_assert_options(): void
     {
         $user_id = $this->rc->user->ID;
         $manager = $this->get_manager();
@@ -249,7 +275,7 @@ class webauthn extends rcube_plugin
     /**
      * AJAX: validate assertion response.
      */
-    public function action_assert_verify()
+    public function action_assert_verify(): void
     {
         if (!$this->rc->check_request(rcube_utils::INPUT_POST)) {
             $this->rc->output->command('plugin.webauthn-assert-result', [
@@ -272,10 +298,10 @@ class webauthn extends rcube_plugin
             return;
         }
 
-        $credential_id   = rcube_utils::get_input_string('credentialId', rcube_utils::INPUT_POST);
-        $client_data      = rcube_utils::get_input_string('clientDataJSON', rcube_utils::INPUT_POST);
+        $credential_id      = rcube_utils::get_input_string('credentialId', rcube_utils::INPUT_POST);
+        $client_data        = rcube_utils::get_input_string('clientDataJSON', rcube_utils::INPUT_POST);
         $authenticator_data = rcube_utils::get_input_string('authenticatorData', rcube_utils::INPUT_POST);
-        $signature         = rcube_utils::get_input_string('signature', rcube_utils::INPUT_POST);
+        $signature          = rcube_utils::get_input_string('signature', rcube_utils::INPUT_POST);
 
         $user_id = $this->rc->user->ID;
         $manager = $this->get_manager();
@@ -323,14 +349,10 @@ class webauthn extends rcube_plugin
         $this->rc->output->send();
     }
 
-    // ----------------------------------------------------------------
-    // Actions: Settings page
-    // ----------------------------------------------------------------
-
     /**
      * Render the security keys settings page.
      */
-    public function action_settings()
+    public function action_settings(): void
     {
         $this->add_texts('localization/');
         $this->include_stylesheet($this->local_skin_path() . '/webauthn.css');
@@ -354,8 +376,11 @@ class webauthn extends rcube_plugin
 
     /**
      * Generate the body HTML for the settings page.
+     *
+     * @return string
+     *   The rendered HTML.
      */
-    public function settings_body()
+    public function settings_body(): string
     {
         $this->rc->output->add_label(
             'webauthn.securitykeys',
@@ -447,7 +472,7 @@ class webauthn extends rcube_plugin
     /**
      * AJAX: return registration challenge options.
      */
-    public function action_register_options()
+    public function action_register_options(): void
     {
         if (!$this->rc->check_request(rcube_utils::INPUT_GET)) {
             $this->rc->output->command('plugin.webauthn-register-options', [
@@ -492,7 +517,7 @@ class webauthn extends rcube_plugin
     /**
      * AJAX: validate registration (attestation) response.
      */
-    public function action_register_verify()
+    public function action_register_verify(): void
     {
         if (!$this->rc->check_request(rcube_utils::INPUT_POST)) {
             $this->rc->output->command('plugin.webauthn-register-result', [
@@ -517,9 +542,9 @@ class webauthn extends rcube_plugin
             return;
         }
 
-        $client_data  = rcube_utils::get_input_string('clientDataJSON', rcube_utils::INPUT_POST);
-        $attestation  = rcube_utils::get_input_string('attestationObject', rcube_utils::INPUT_POST);
-        $transports   = rcube_utils::get_input_string('transports', rcube_utils::INPUT_POST);
+        $client_data = rcube_utils::get_input_string('clientDataJSON', rcube_utils::INPUT_POST);
+        $attestation = rcube_utils::get_input_string('attestationObject', rcube_utils::INPUT_POST);
+        $transports  = rcube_utils::get_input_string('transports', rcube_utils::INPUT_POST);
 
         $user_id = $this->rc->user->ID;
         $manager = $this->get_manager();
@@ -562,7 +587,7 @@ class webauthn extends rcube_plugin
     /**
      * AJAX: delete a credential.
      */
-    public function action_delete()
+    public function action_delete(): void
     {
         if (!$this->rc->check_request(rcube_utils::INPUT_POST)) {
             $this->rc->output->command('plugin.webauthn-delete-result', [
@@ -606,7 +631,7 @@ class webauthn extends rcube_plugin
     /**
      * AJAX: toggle 2FA enabled/disabled (optional policy only).
      */
-    public function action_toggle()
+    public function action_toggle(): void
     {
         if (!$this->rc->check_request(rcube_utils::INPUT_POST)) {
             $this->rc->output->command('plugin.webauthn-toggle-result', [
