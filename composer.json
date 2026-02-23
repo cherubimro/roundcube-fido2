@@ -3,7 +3,6 @@
     "type": "roundcube-plugin",
     "description": "FIDO2/WebAuthn two-factor authentication for Roundcube Webmail",
     "license": "GPL-3.0-or-later",
-    "version": "1.0.0",
     "keywords": ["roundcube", "plugin", "fido2", "webauthn", "2fa", "security-key", "yubikey"],
     "homepage": "https://github.com/cherubimro/roundcube-fido2",
     "authors": [
